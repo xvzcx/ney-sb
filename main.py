@@ -3,16 +3,25 @@ from discord.ext import commands
 import os
 import asyncio
 
-# Setup bot with prefix ',' and self_bot enabled
-bot = commands.Bot(command_prefix=",", self_bot=True, help_command=None)
+# 1. SETUP INTENTS (Crucial: This lets the bot actually read your messages)
+intents = discord.Intents.default()
+intents.message_content = True 
 
-# Store for the ,snipe command
+bot = commands.Bot(command_prefix=",", self_bot=True, help_command=None, intents=intents)
+
+# Database for the snipe command
 deleted_messages = {}
 STREAM_URL = "https://www.twitch.tv/twitch"
 
 @bot.event
 async def on_ready():
     print(f"--- SBO ONLINE: {bot.user.name} ---")
+    print("Commands should now be responsive.")
+
+@bot.event
+async def on_message(message):
+    # This is the FIX: It allows commands to work alongside on_message
+    await bot.process_commands(message)
 
 @bot.event
 async def on_message_delete(message):
@@ -31,14 +40,13 @@ async def help(ctx):
     help_text = (
         "**SBO SELF-BOT COMMANDS**\n\n"
         "**RPC Status:**\n"
-        "`,playing <text>` - Set Game Status\n"
-        "`,streaming <text>` - Set Streaming Status (Purple)\n"
-        "`,listen <text>` - Set Listening Status\n"
-        "`,watching <text>` - Set Watching Status\n\n"
+        "`,playing <text>`\n"
+        "`,streaming <text>`\n"
+        "`,listen <text>`\n"
+        "`,watching <text>`\n\n"
         "**Utilities:**\n"
-        "`,snipe` - Recover last deleted message in channel\n"
-        "`,snipe <mode> <@user>` - Targeted DM Modes\n"
-        "   `1` = All | `2` = Open DMs | `3` = Target Only"
+        "`,snipe` - Get last deleted msg\n"
+        "`,snipe <mode> <@user>` - DM Modes (1=All, 2=Open, 3=Target)"
     )
     await ctx.message.edit(content=help_text)
 
@@ -47,16 +55,9 @@ async def help(ctx):
 @bot.command()
 async def listen(ctx, *, text=None):
     if not text:
-        return await ctx.message.edit(content="⚠️ **Correction:** Use `,listen <song/text>`", delete_after=5)
+        return await ctx.message.edit(content="⚠️ **Correction:** Use `,listen <song>`", delete_after=5)
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=text))
     await ctx.message.edit(content=f"🎧 Listening to: **{text}**", delete_after=2)
-
-@bot.command()
-async def playing(ctx, *, text=None):
-    if not text:
-        return await ctx.message.edit(content="⚠️ **Correction:** Use `,playing <game>`", delete_after=5)
-    await bot.change_presence(activity=discord.Game(name=text))
-    await ctx.message.edit(content=f"🎮 Playing: **{text}**", delete_after=2)
 
 @bot.command()
 async def streaming(ctx, *, text=None):
@@ -65,34 +66,17 @@ async def streaming(ctx, *, text=None):
     await bot.change_presence(activity=discord.Streaming(name=text, url=STREAM_URL))
     await ctx.message.edit(content=f"💜 Streaming: **{text}**", delete_after=2)
 
-@bot.command()
-async def watching(ctx, *, text=None):
-    if not text:
-        return await ctx.message.edit(content="⚠️ **Correction:** Use `,watching <show/movie>`", delete_after=5)
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=text))
-    await ctx.message.edit(content=f"👀 Watching: **{text}**", delete_after=2)
-
-# --- SNIPE & DM MODES ---
+# --- SNIPE COMMAND ---
 
 @bot.command()
 async def snipe(ctx, mode: int = None, user: discord.User = None):
-    # If mode is provided but user is missing, provide correction
+    # Correction for missing user in DM modes
     if mode is not None and user is None:
-        return await ctx.message.edit(content="⚠️ **Correction:** Proper usage: `,snipe <1, 2, or 3> {@user}`", delete_after=5)
+        return await ctx.message.edit(content="⚠️ **Correction:** Use `,snipe <mode> {@user}`", delete_after=5)
 
-    # Targeted DM Logic
-    if mode is not None and user is not None:
-        if mode == 1:
-            await ctx.message.edit(content=f"🚀 [Mode 1] Sending to All: {user.mention}")
-            await user.send("Mass DM Mode 1")
-        elif mode == 2:
-            await ctx.message.edit(content=f"📂 [Mode 2] Sending to Open DMs: {user.mention}")
-            await user.send("Mode 2 DM")
-        elif mode == 3:
-            await ctx.message.edit(content=f"🎯 [Mode 3] Targeted: {user.mention}")
-            await user.send("Mode 3 DM")
-    
-    # Standard Snipe
+    if mode and user:
+        await ctx.message.edit(content=f"✅ Mode {mode} triggered for {user.name}", delete_after=2)
+        await user.send(f"Targeted via Mode {mode}")
     else:
         msg = deleted_messages.get(ctx.channel.id)
         if msg:
@@ -100,9 +84,9 @@ async def snipe(ctx, mode: int = None, user: discord.User = None):
         else:
             await ctx.message.edit(content="❌ Nothing to snipe.", delete_after=2)
 
-# Run logic
+# RUN LOGIC
 token = os.getenv("DISCORD_TOKEN")
 if token:
     bot.run(token)
 else:
-    print("Error: DISCORD_TOKEN variable not found in environment.")
+    print("Error: DISCORD_TOKEN not found in environment.")
