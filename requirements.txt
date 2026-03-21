@@ -1,4 +1,2 @@
 discord.py-self
 flask
-requests
-gunicorn
