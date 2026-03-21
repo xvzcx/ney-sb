@@ -16,10 +16,9 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 # ─── BOT SETUP ───
-# Minimalist setup to avoid Syntax/Attribute errors on Railway
+# We use a standard setup. If intents=None fails, discord.py-self will handle it.
 bot = commands.Bot(command_prefix=",", self_bot=True, help_command=None)
 
-# Registries
 bot.deleted_messages = {}
 STREAM_URL = "https://www.twitch.tv/twitch"
 
@@ -38,11 +37,17 @@ def ui_box(title, body, color="36"):
 
 @bot.event
 async def on_ready():
-    print(f"─── {bot.user} | DEPLOYED SUCCESSFULLY ───")
+    # This will show up in your Railway logs if successful
+    print("----------------------------")
+    print(f"Logged in as: {bot.user}")
+    print("COMMANDS READY: ,help | ,snipe | ,mdm")
+    print("----------------------------")
 
 @bot.event
 async def on_message(message):
-    # This ensures commands are actually executed
+    # Only process commands from YOU
+    if message.author.id != bot.user.id:
+        return
     await bot.process_commands(message)
 
 @bot.event
@@ -64,8 +69,7 @@ async def help(ctx):
 @bot.command()
 async def streaming(ctx, *, text=None):
     await ctx.message.delete()
-    if not text:
-        return await ctx.send(ui_box("Error", "Usage: ,streaming [txt]", "31"), delete_after=5)
+    if not text: return
     await bot.change_presence(activity=discord.Streaming(name=text, url=STREAM_URL))
     await ctx.send(ui_box("Stream", f"Live: {text}", "35"), delete_after=3)
 
@@ -73,8 +77,10 @@ async def streaming(ctx, *, text=None):
 async def snipe(ctx, mode: int = None, user: discord.User = None):
     await ctx.message.delete()
     if mode is not None and user is not None:
-        await user.send(f"**[SBO Mode {mode}]** Connection Verified.")
-        await ctx.send(ui_box("Snipe", f"Mode {mode} -> {user.name}", "32"), delete_after=3)
+        try:
+            await user.send(f"**[SBO Mode {mode}]** Connection Verified.")
+            await ctx.send(ui_box("Snipe", f"Mode {mode} -> {user.name}", "32"), delete_after=3)
+        except: pass
     else:
         data = bot.deleted_messages.get(ctx.channel.id)
         if data:
@@ -98,10 +104,11 @@ async def mdm(ctx, *, message: str = None):
 
 # ─── EXECUTION ───
 if __name__ == "__main__":
-    TOKEN = os.getenv("DISCORD_TOKEN")
-    if TOKEN:
-        # Flask for Railway Health Check
+    raw_token = os.getenv("DISCORD_TOKEN")
+    if raw_token:
+        # CLEANSE: Removes quotes or spaces Railway sometimes adds
+        TOKEN = raw_token.strip().strip('"').strip("'")
         Thread(target=run_flask, daemon=True).start()
         bot.run(TOKEN)
     else:
-        print("CRITICAL: DISCORD_TOKEN is empty.")
+        print("CRITICAL: DISCORD_TOKEN is empty in Railway settings.")
