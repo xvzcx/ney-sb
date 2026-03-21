@@ -16,9 +16,10 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 # ─── BOT SETUP ───
-# We remove the 'intents' argument to prevent the Syntax/Attribute Error
+# Minimalist setup to avoid Syntax/Attribute errors on Railway
 bot = commands.Bot(command_prefix=",", self_bot=True, help_command=None)
 
+# Registries
 bot.deleted_messages = {}
 STREAM_URL = "https://www.twitch.tv/twitch"
 
@@ -37,11 +38,11 @@ def ui_box(title, body, color="36"):
 
 @bot.event
 async def on_ready():
-    print(f"─── {bot.user} | DEPLOYED ───")
+    print(f"─── {bot.user} | DEPLOYED SUCCESSFULLY ───")
 
 @bot.event
 async def on_message(message):
-    # This is the most important part for making commands work
+    # This ensures commands are actually executed
     await bot.process_commands(message)
 
 @bot.event
@@ -72,7 +73,7 @@ async def streaming(ctx, *, text=None):
 async def snipe(ctx, mode: int = None, user: discord.User = None):
     await ctx.message.delete()
     if mode is not None and user is not None:
-        await user.send(f"**[SBO Mode {mode}]** Status Check.")
+        await user.send(f"**[SBO Mode {mode}]** Connection Verified.")
         await ctx.send(ui_box("Snipe", f"Mode {mode} -> {user.name}", "32"), delete_after=3)
     else:
         data = bot.deleted_messages.get(ctx.channel.id)
@@ -99,5 +100,8 @@ async def mdm(ctx, *, message: str = None):
 if __name__ == "__main__":
     TOKEN = os.getenv("DISCORD_TOKEN")
     if TOKEN:
+        # Flask for Railway Health Check
         Thread(target=run_flask, daemon=True).start()
         bot.run(TOKEN)
+    else:
+        print("CRITICAL: DISCORD_TOKEN is empty.")
