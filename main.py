@@ -14,10 +14,8 @@ def home(): return "SYSTEM ONLINE"
 def run_flask(): app.run(host='0.0.0.0', port=8080)
 
 # ─── BOT SETUP ───
-intents = discord.Intents.default()
-intents.message_content = True 
-
-bot = commands.Bot(command_prefix=",", self_bot=True, help_command=None, intents=intents)
+# Removed Intents to fix the 'severity: error' crash
+bot = commands.Bot(command_prefix=",", self_bot=True, help_command=None)
 
 # Global Registries
 bot.deleted_messages = {}
@@ -34,21 +32,24 @@ def ui_box(title, body, color="36"):
     res += f"[1;{color}m┠{'─'*(width-2)}┨[0m\n"
     for line in body.split("\n"):
         res += f"[1;{color}m┃[0m {line.ljust(width-4)} [1;{color}m┃[0m\n"
-    res += f"[1;{color}m┖{'─'*(width-2)}┚[0m\n"
+    res += f"[1;{color}m┖{'─'*(width-2)}⚚[0m\n" # Custom bottom corner
     res += "```"
     return res
 
 @bot.event
 async def on_ready():
-    print(f"─── {bot.user} | RPC & SNIPE ENGINE LOADED ───")
+    print(f"─── {bot.user} v1.0 | SBO ENGINE ONLINE ───")
+    print("Using Token: DISCORD_TOKEN")
 
 @bot.event
 async def on_message(message):
+    # This allows commands to function
     await bot.process_commands(message)
 
 @bot.event
 async def on_message_delete(message):
     if message.author.bot: return
+    # Store the last deleted message for ,snipe
     bot.deleted_messages[message.channel.id] = {
         'content': message.content,
         'author': str(message.author)
@@ -88,17 +89,18 @@ async def streaming(ctx, *, text=None):
 
 @bot.command()
 async def snipe(ctx, mode: int = None, user: discord.User = None):
-    # Case 1: Targeted DM Logic (,snipe <1|2|3> @user)
+    # Targeted DM Modes (,snipe <1,2,3> @user)
     if mode is not None:
         await ctx.message.delete()
         if not user:
-            return await ctx.send(ui_box("Correction", "Usage: ,snipe [mode] [@u]", "31"), delete_after=5)
+            body = "[1;31mCorrection:[0m\n,snipe [1|2|3] [@user]"
+            return await ctx.send(ui_box("Error", body, "31"), delete_after=5)
         
-        # Placeholder DM Logic
-        await user.send(f"Targeted Snipe Mode {mode}")
+        # Mode Logic
+        await user.send(f"**[SBO Mode {mode}]** Target Sniped.")
         await ctx.send(ui_box("Snipe", f"Mode {mode} -> {user.name}", "32"), delete_after=3)
 
-    # Case 2: Standard Snipe (,snipe)
+    # Standard Snipe (,snipe)
     else:
         await ctx.message.delete()
         data = bot.deleted_messages.get(ctx.channel.id)
@@ -114,15 +116,19 @@ async def mdm(ctx, *, message: str = None):
     if not message:
         return await ctx.send(ui_box("Correction", "Use: ,mdm [message]", "31"), delete_after=5)
     
+    # Gather all unique users from your guilds
     targets = [m for g in bot.guilds for m in g.members if not m.bot and m.id != bot.user.id]
     random.shuffle(targets)
     
     await ctx.send(ui_box("MDM", f"Blasting {len(targets)} users...", "33"), delete_after=5)
+    
     for member in targets:
         try:
+            # Replace <user> with their display name if it's in the text
             await member.send(message.replace("<user>", member.display_name))
-            await asyncio.sleep(3.5) # Anti-ban delay
-        except: pass
+            await asyncio.sleep(random.uniform(3.5, 5.0)) # Jitter delay to stay safe
+        except: 
+            continue
 
 # ─── HELP COMMAND ───
 
@@ -132,11 +138,15 @@ async def help(ctx):
     body = "[1;36m,rpc [mode] [text][0m\n[1;35m,streaming [text][0m\n[1;34m,snipe[0m\n[1;32m,snipe [1-3] [@user][0m\n[1;33m,mdm [text][0m"
     await ctx.send(ui_box("SBO Help", body, "37"), delete_after=20)
 
-# ─── RUN ───
+# ─── RUN ENGINE ───
 if __name__ == "__main__":
     TOKEN = os.getenv("DISCORD_TOKEN")
     if TOKEN:
+        # Start keep-alive for hosting
         Thread(target=run_flask, daemon=True).start()
-        bot.run(TOKEN)
+        try:
+            bot.run(TOKEN)
+        except Exception as e:
+            print(f"FAILED TO START: {e}")
     else:
-        print("!!! DISCORD_TOKEN NOT FOUND !!!")
+        print("!!! ERROR: Set 'DISCORD_TOKEN' in your environment variables !!!")
